@@ -1,0 +1,1187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Travel Buddy - Campus Commute App</title>
+    <!-- ✅ FIREBASE v8 SDKs (CORRECT) -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+    <link rel="stylesheet" href="style.css">
+
+
+</head>
+
+
+
+<script>
+    function isValidIndianMobile(phone) {
+        if (!phone) return false;
+
+        // Remove spaces, +, -
+        const cleaned = phone.replace(/\D/g, '');
+
+        // Must be 10 digits and start with 7/8/9
+        return /^[6789]\d{9}$/.test(cleaned);
+    }
+
+</script>
+<script>
+    let confirmCallback = null;
+
+    function showAppConfirm(message, callback) {
+    document.getElementById('appConfirmMessage').textContent = message;
+    document.getElementById('appConfirm').style.display = 'flex';
+    confirmCallback = callback;
+    }
+
+    function closeAppConfirm(result) {
+    document.getElementById('appConfirm').style.display = 'none';
+    if (confirmCallback) {
+        confirmCallback(result);
+        confirmCallback = null;
+    }
+    }
+
+</script>
+<script>
+    // === ADD THIS FUNCTION ONCE ===
+function refillForcedNameFields() {
+    const currentUser = auth.currentUser;
+    if (!currentUser || !currentUser.displayName) return;
+
+    // Refill ALL name fields that are forced from Google
+    const nameFields = document.querySelectorAll('#rideName, #errandName, #trainName, #profileName');
+    nameFields.forEach(field => {
+        if (field) {
+            field.value = currentUser.displayName;
+        }
+    });
+}
+// === END ===
+</script>
+<script>
+    function showAppAlert(message) {
+    document.getElementById('appAlertMessage').textContent = message;
+    document.getElementById('appAlert').style.display = 'flex';
+    }
+
+    function closeAppAlert() {
+    document.getElementById('appAlert').style.display = 'none';
+    }
+
+</script>
+<body>
+
+    <div class="container">
+        <div id="loginPage" class="login-container">
+            <div class="login-card">
+                <h2>Welcome to Travel Buddy 🚀</h2>
+                <p>Sign in with your Google account to get started</p>
+                <button class="btn btn-google" onclick="loginWithGoogle()">Sign in with Google</button>
+            </div>
+        </div>
+
+        <div class="app-wrapper" id="appWrapper">
+            <header>
+                <h1>🚀 Travel Buddy</h1>
+                <p style="margin: var(--space-8) 0 0 0; font-size: 14px; opacity: 0.9;">Campus Commute. Shared & Smart.</p>
+                <div class="auth-section">
+                    <div class="user-greeting" id="userGreeting"></div>
+                    <button class="btn btn-logout" onclick="logout()">Logout</button>
+                </div>
+            </header>
+
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="rides">🤝 Share Ride</button>
+            <button class="tab-btn" data-tab="trains">🚂 Train Travel</button>
+            <button class="tab-btn" data-tab="errands">🛒 Errands</button> 
+            <button class="tab-btn" data-tab="guide">📖 Newcomer Guide</button>
+            <button class="tab-btn" data-tab="profile">👤 My Profile</button>
+        </div>
+
+        <!-- RIDES TAB -->
+        <div id="rides" class="tab-content active">
+            <!-- SEARCH RIDES AT TOP -->
+           <div class="search-form">
+                <h2 style="margin: 0 0 var(--space-16) 0;">🔍 Find Nearby Rides</h2>
+                <div id="searchFormContainer">
+                    <!-- search fields here - REMOVE style="display: none;" -->
+
+                    <p style="font-size: 13px; color: var(--color-text-secondary); margin-top: 0;">Search for rides within 10km radius of your pickup and dropoff locations</p>
+                    <div class="search-grid">
+                        <div class="form-group-relative">
+                            <label>From (Location)</label>
+                            <input type="text" id="searchFrom" placeholder="e.g., Kottayam, Pala..." autocomplete="off">
+                            <div class="location-list" id="fromLocationList"></div>
+                        </div>
+                        <div class="form-group-relative">
+                            <label>To (Location)</label>
+                            <input type="text" id="searchTo" placeholder="e.g., IIIT, Ernakulam..." autocomplete="off">
+                            <div class="location-list" id="toLocationList"></div>
+                        </div>
+                        <div class="form-group-relative">
+                            <label>Date</label>
+                            <input type="date" id="searchDate">
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: var(--space-8);">
+                        <button class="btn btn-primary" onclick="searchRidesByProximity()">Search 🔍</button>
+                        <button class="btn btn-secondary" onclick="clearSearch()">Clear</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid" id="searchResultsList"></div>
+
+            <hr style="margin: 30px 0; border: none; border-top: 2px solid var(--color-border);">
+
+            <!-- SHARE RIDE FORM -->
+            <div class="card">
+                <h2>🚗 Share a Ride</h2>
+                <form id="rideForm">
+                    <div class="form-group">
+                        <label>Your Name (Verified from Google – cannot edit)</label>
+                        <input type="text" id="rideName" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label>Phone Number</label>
+                        
+                        <input
+                        type="tel"
+                        id="ridePhone"
+                        placeholder="10-digit mobile number"
+                        required
+                        pattern="[6789][0-9]{9}"
+                        title="Enter a valid 10-digit Indian mobile number starting with 7, 8, or 9"
+                        />
+
+                    </div>
+                    <div class="form-group-relative">
+                        <label>Going From</label>
+                        <input type="text" id="rideFrom" placeholder="e.g., Pala, Kottayam..." autocomplete="off" required>
+                        <div class="location-list" id="rideFromLocationList"></div>
+                    </div>
+                    <div class="form-group-relative">
+                        <label>Going To</label>
+                        <input type="text" id="rideTo" placeholder="e.g., IIIT, Ernakulam..." autocomplete="off" required>
+                        <div class="location-list" id="rideToLocationList"></div>
+                    </div>
+                    <div class="form-group">
+                        <label>Departure Date & Time</label>
+                        <input type="datetime-local" id="rideDeparture" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Seats Available</label>
+                        <input type="number" id="rideSeats" min="1" max="5" value="1" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Notes (auto, bus, cab, etc.)</label>
+                        <textarea id="rideNotes" placeholder="Vehicle type, preferences, estimated cost..."></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Post Ride 🚗</button>
+                </form>
+            </div>
+                
+                <h2>Available Rides</h2>
+                <!-- YAtish -->
+                <div class="filter-bar" style="margin-bottom: 1vh;">
+                    <input type="text" placeholder="Search starting place, destination,seats,date…"  style="display: inline-block;" id="filter-input-rides">
+                    
+                    <select class="filter-select" id="filter-select-rides">
+                        <option>Post time</option> 
+                        <option>Time Ascending</option> 
+                        <option>Time Descending</option>
+                        <option>Seats High → Low</option>
+                        <option>Seats Low → High</option>
+                    </select>
+                </div>
+                
+                <!-- YAtish -->
+                <div class="grid" id="ridesList"></div>
+        </div>
+        <!-- ERRANDS TAB -->
+        <div id="errands" class="tab-content">
+            <div class="card">
+                <h2>Post an Errand Request</h2>
+                <form id="errandForm">
+                    <div class="form-group">
+                        <label>Your Name (Verified from Google – cannot edit)</label>
+                        <input type="text" id="errandName" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label>Phone Number</label>
+                       <input
+                        type="tel"
+                        id="errandPhone"
+                        placeholder="10-digit mobile number"
+                        required
+                        pattern="[6789][0-9]{9}"
+                        title="Enter a valid 10-digit Indian mobile number starting with 7, 8, or 9"
+                        />
+
+                    </div>
+                    <div class="form-group">
+                        <label>What do you need?</label>
+                        <input type="text" id="errandItem" placeholder="e.g., Buy groceries from market" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Budget (₹)</label>
+                        <input type="number" id="errandBudget" placeholder="0" min="0">
+                    </div>
+                    <div class="form-group">
+                        <label>Details</label>
+                        <textarea id="errandDetails" placeholder="Specific items, preferences, urgency..."></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Post Request 🛒</button>
+                </form>
+            </div>
+
+            <h2>Available Errands</h2>
+            <div class="filter-bar" style="margin-bottom: 1vh;">
+                    <input type="text" placeholder="Search Item names…"  style="display: inline-block;" id="filter-input-erands">
+                    
+                    <select class="filter-select" id="filter-select-erands">
+                        <option>Post time</option> 
+                        <option>Time Ascending</option>
+                        <option>Time Descending</option>
+                        <option>Name Ascending</option>
+                        <option>Name Descending</option>
+                    </select>
+            </div>
+            <div class="grid" id="errandsList"></div>
+        </div>
+
+        <!-- RIDES TAB -->
+        <div id="rides" class="tab-content">
+            <div class="card">
+                <h2>Share a Ride</h2>
+                <form id="rideForm">
+                    <div class="form-group">
+                        <label>Your Name</label>
+                        <input type="text" id="rideName" placeholder="Your name" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Phone Number</label>
+                        <input type="tel" id="ridePhone" placeholder="+91 9876543210" required>
+                    </div>
+                    <div class="form-group-relative">
+                        <label>Going From</label>
+                        <input type="text" id="rideFrom" placeholder="e.g., Pala, Kottayam..." autocomplete="off" required>
+                        <div class="location-list" id="rideFromLocationList"></div>
+                    </div>
+                    <div class="form-group-relative">
+                        <label>Going To</label>
+                        <input type="text" id="rideTo" placeholder="e.g., IIIT, Ernakulam..." autocomplete="off" required>
+                        <div class="location-list" id="rideToLocationList"></div>
+                    </div>
+                    <div class="form-group">
+                        <label>Departure Date</label>
+                        <input type="date" id="rideDate" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Departure Time</label>
+                        <input type="time" id="rideTime" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Seats Available</label>
+                        <input type="number" id="rideSeats" min="1" max="5" value="1" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Notes (auto, bus, cycle, etc.)</label>
+                        <textarea id="rideNotes" placeholder="Vehicle type, preferences, estimated cost..."></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Post Ride 🤝</button>
+                </form>
+            </div>
+
+            <h2>Your Posted Rides</h2>
+            <div class="grid" id="ridesList"></div>
+        </div>
+
+        <!-- TRAIN TRAVEL TAB -->
+        <div id="trains" class="tab-content">
+            <div class="card">
+                <h2>Post Your Train Journey</h2>
+                <form id="trainForm">
+                    <div class="form-group">
+                        <label>Your Name (Verified from Google – cannot edit)</label>
+                        <input type="text" id="trainName" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label>Phone Number</label>
+                        <input
+                        type="tel"
+                        id="trainPhone"
+                        placeholder="10-digit mobile number"
+                        required
+                        pattern="[6789][0-9]{9}"
+                        title="Enter a valid 10-digit Indian mobile number starting with 7, 8, or 9"
+                        />
+
+                    </div>
+                    <div class="form-group">
+                        <label>Train Number & Name</label>
+                        <input type="text" id="trainNumberName" placeholder="e.g., 16301 Kottayam Express or just 16301" required>
+                    </div>
+                    <div class="form-group-relative">
+                        <label>From Station</label>
+                        <input type="text" id="trainFrom" placeholder="e.g., Kottayam..." autocomplete="off" required>
+                        <div class="location-list" id="trainFromLocationList"></div>
+                    </div>
+                    <div class="form-group-relative">
+                        <label>To Station</label>
+                        <input type="text" id="trainTo" placeholder="e.g., New Delhi..." autocomplete="off" required>
+                        <div class="location-list" id="trainToLocationList"></div>
+                    </div>
+                    <div class="form-group">
+                        <label>Departure Date & Time</label>
+                        <input type="datetime-local" id="trainDeparture" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Coach Number (Optional)</label>
+                        <input type="text" id="trainCoach" placeholder="e.g., A1, B3">
+                    </div>
+                    <div class="form-group">
+                        <label>Additional Notes</label>
+                        <textarea id="trainNotes" placeholder="Seat availability, reserved/unreserved, preferences..."></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Post Train Journey 🚂</button>
+                </form>
+            </div>
+
+            <h2>Find Co-Travelers</h2>
+                <div class="card">
+                <div class="form-group">
+                    <label>Search by Train Number or Name</label>
+                    <input type="text" id="trainSearchInput" placeholder="e.g., 16301, Kottayam Express...">
+                </div>
+                <div style="display: flex; gap: var(--space-8)">
+                    <button class="btn btn-primary" onclick="searchTrainTravelers()">🔍 Search</button>
+                    <button class="btn btn-secondary" onclick="clearTrainSearch()">Clear</button>
+                </div>
+                </div>
+                <div class="filter-bar" style="margin-bottom: 1vh;">
+                    <input type="text" placeholder="Search station  names…"  style="display: inline-block;" id="filter-input-trains">
+                    
+                    <select class="filter-select" id="filter-select-trains">
+                        <option>Post time</option> 
+                        <option>Time Ascending</option>
+                        <option>Time Descending</option>
+                        <!-- <option>Name Ascending</option>
+                        <option>Name Descending</option> -->
+                    </select>
+                </div>
+                <div class="grid" id="trainsList"></div>  <!-- Results here, shows empty -->
+        </div>
+
+
+        <!-- NEWCOMER GUIDE TAB -->
+        <div id="guide" class="tab-content">
+            <div class="card">
+                <h2>Welcome to IIIT Kottayam! 🎓</h2>
+                <p>Here's how to reach campus from major entry points:</p>
+
+                <div class="route-info">
+                    <strong>📍 Route 1: From Kottayam railway Station</strong><br>
+                    Kottayam Station → Kottayam Bus Stand → Auto/Bus to Pala → Valavoor → IIIT Kottayam<br>
+                    <strong>Time:</strong> ~45-60 min | <strong>Cost:</strong> ₹60-90 (bus), ₹400-500 (auto)
+                </div>
+
+                <div class="route-info">
+                    <strong>📍 Route 2: From Kottayam Bus Stand</strong><br>
+                    Bus Stand → kottaramattom,Pala → valvoor → Auto/Walk to campus<br>
+                    <strong>Time:</strong> ~30-45 min | <strong>Cost:</strong> ₹60-100 (bus), ₹200 (auto)
+                </div>
+
+                <div class="route-info">
+                    <strong>📍 Route 3: From Cochin Airport (Kochi)</strong><br>
+                    Airport → Cochin City → Kottayam → Follow Route 1<br>
+                    <strong>Time:</strong> ~2-3 hours | <strong>Cost:</strong> ₹400-600 (cab/shared auto)
+                </div>
+
+                <h3>Quick Tips 💡</h3>
+                <ul>
+                    <li><strong>Auto from Pala:</strong>Ask the auto driver about IIIT Valvoor.</li>
+                    <li><strong>Bus Stops:</strong> Ask locals for bus timing</li>
+                    <li><strong>Night Travel:</strong> No bus and auto will be available so use cab</li>
+                    <li><strong>Budget:</strong> Keep ₹300-500 budget for a comfortable commute</li>
+                    <li><strong>Connect:</strong> Join our Travel Buddy community to meet seniors and get live help!</li>
+                </ul>
+              <div style="background: #f0f8ff; padding: 20px; border-radius: 8px; margin: 20px 0;">
+    <div style="-weight: 500; font-size: 18px; margin-bottom: 15px;">
+        📍 IIIT Kottayam
+    </div>
+    <div id="buddy-map" 
+         style="height: 400px; width: 100%; border-radius: 8px;"></div>
+    <small style="color: #666; display: block; margin-top: 10px;">
+    </small>
+</div>
+
+
+               
+            </div>
+        </div>
+
+        <!-- PROFILE TAB -->
+        <div id="profile" class="tab-content">
+            <div class="card">
+                <h2>My Profile</h2>
+                <form id="profileForm">
+                    <div class="form-group">
+                        <label>Full Name (Verified from Google – cannot edit)</label>
+                        <input type="text" id="profileName" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label>Phone Number</label>
+                        <input
+                        type="tel"
+                        id="profilePhone"
+                        placeholder="10-digit mobile number"
+                        required
+                        pattern="[6789][0-9]{9}"
+                        title="Enter a valid 10-digit Indian mobile number starting with 7, 8, or 9"
+                        />
+
+                    </div>
+                    <div class="form-group">
+                        <label>Hostel / Residential Info</label>
+                        <input type="text" id="profileHostel" placeholder="e.g., Boys Hostel A, Room 201">
+                    </div>
+                    <div class="form-group">
+                        <label>Bio (Optional)</label>
+                        <textarea id="profileBio" placeholder="Tell others about yourself, your commute habits, etc."></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Save Profile 👤</button>
+                </form>
+
+                <div id="savedProfile" style="margin-top: var(--space-16); display: none;">
+                    <h3>Your Saved Profile</h3>
+                    <div class="card" id="profileDisplay"></div>
+                </div>
+            </div>
+        </div>
+        </div>
+    </div>
+
+    <script>
+        // ===== FIREBASE SETUP =====
+        const firebaseConfig = {
+            apiKey: "AIzaSyDS-gIzoAL4agyN615ogi0e8wfpro6OcD4",
+            authDomain: "travel-buddy-76b26.firebaseapp.com",
+            projectId: "travel-buddy-76b26",
+            storageBucket: "travel-buddy-76b26.firebasestorage.app",
+            messagingSenderId: "690855818406",
+            appId: "1:690855818406:web:3b2285d2b69fe5ef763067"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        
+        // ===== AUTHENTICATION =====
+       auth.onAuthStateChanged(user => {
+            if (user) {
+                console.log("Logged in as:", user.displayName);
+                document.getElementById('loginPage').style.display = 'none';
+                document.getElementById('appWrapper').style.display = 'block';
+                document.getElementById('userGreeting').textContent = `Welcome, ${user.displayName}!`;
+
+                // === NEW: Force Google display name across all name fields ===
+                const displayName = user.displayName || 'User';
+                const nameFields = document.querySelectorAll('#rideName, #errandName, #trainName, #profileName');
+                nameFields.forEach(field => {
+                    if (field) {
+                        field.value = displayName;
+                        field.readOnly = true;
+                        // Visual feedback
+                        field.style.backgroundColor = '#f5f5f5';
+                        field.style.color = '#666';
+                        field.style.cursor = 'not-allowed';
+                    }
+                });
+                // === END NEW ===
+
+                loadAllData();
+            } else {
+                console.log("Not logged in");
+                document.getElementById('loginPage').style.display = 'block';
+                document.getElementById('appWrapper').style.display = 'none';
+                // ... existing code
+            }
+        });
+
+        function formatTimestamp(ts) {
+            if (!ts) return 'Just now';
+            if (ts.toDate) return ts.toDate().toLocaleString();
+            return 'Recently';
+        }
+
+        function loginWithGoogle() {
+            const provider = new firebase.auth.GoogleAuthProvider();
+            auth.signInWithPopup(provider)
+                .then(result => {
+                    const user = result.user;
+                    const email = user.email || '';
+                    
+                    if (!email.endsWith('@iiitkottayam.ac.in')) {
+                        showAppAlert('❌ Access Denied!\nPlease use your IIIT Kottayam email ID (@iiitkottayam.ac.in)');
+                        auth.signOut();
+                        return;
+                    }
+                    
+                    showAppAlert(`✅ Welcome ${user.displayName}!`);
+                })
+                .catch(error => {
+                    showAppAlert("Login failed: " + error.message);
+                });
+        }
+
+        function logout() {
+            auth.signOut()
+                .then(() => showAppAlert("Logged out successfully"))
+                .catch(error => console.error("Logout failed:", error));
+        }
+
+        // ===== TAB SWITCHING =====
+        const tabButtons = document.querySelectorAll('.tab-btn');
+        const tabContents = document.querySelectorAll('.tab-content');
+        
+        tabButtons.forEach(btn => {
+            btn.addEventListener('click', function() {
+            const tabName = this.getAttribute('data-tab');
+            tabContents.forEach(tab => tab.classList.remove('active'));
+            tabButtons.forEach(b => b.classList.remove('active'));
+            const targetTab = document.getElementById(tabName);
+            if (targetTab) {
+                targetTab.classList.add('active');
+                this.classList.add('active');
+            }
+            });
+    });
+  console.log('✅ Tabs ready!');
+
+        // ===== DATA STORAGE =====
+        let errands = [];
+        let rides = [];
+        let trains = [];
+        let userProfile = {};
+
+        // ===== RIDES FUNCTIONS =====
+       document.getElementById('rideForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        
+        const user = auth.currentUser;
+        if (!user) {
+            showAppAlert('Please log in first!');
+            return;
+        }
+
+        // ✅ STEP 3: PHONE VALIDATION (ADD HERE)
+        const phone = document.getElementById('ridePhone').value;
+        if (!isValidIndianMobile(phone)) {
+            showAppAlert(
+                'Please enter a valid 10-digit Indian mobile number starting with 7, 8, or 9.'
+            );
+            return;
+        }
+
+        const departureInput = document.getElementById('rideDeparture').value;
+        if (!departureInput) {
+            showAppAlert('Please select departure date and time!');
+            return;
+        }
+
+        const selectedDateTime = new Date(departureInput);
+        const now = new Date();
+        
+        if (selectedDateTime <= now) {
+            showAppAlert('Departure time must be in the future!');
+            return;
+        }
+
+        const dateStr = selectedDateTime.toISOString().split('T')[0];
+        const timeStr = selectedDateTime.toTimeString().slice(0, 5);
+
+        const ride = {
+            userId: user.uid,
+            name: user.displayName,
+            phone: phone, // use validated phone
+            from: document.getElementById('rideFrom').value,
+            to: document.getElementById('rideTo').value,
+            departure: departureInput,
+            date: dateStr,
+            time: timeStr,
+            seats: document.getElementById('rideSeats').value,
+            notes: document.getElementById('rideNotes').value,
+            timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        };
+
+        db.collection('rides').add(ride)
+            .then(() => {
+                document.getElementById('rideForm').reset();
+                refillForcedNameFields();
+                showAppAlert('Ride posted! Others can find it now');
+            })
+            .catch((error) => {
+                showAppAlert('Error posting ride: ' + error.message);
+            });
+    });
+
+
+        function deleteRide(id) {
+        showAppConfirm('Delete this ride?', (confirmed) => {
+            if (!confirmed) return;
+
+            db.collection('rides').doc(id).delete()
+            .then(() => {
+                showAppAlert('Ride deleted successfully ✅');
+            })
+            .catch(err => {
+                showAppAlert('Error deleting ride: ' + err.message);
+            });
+        });
+        }
+
+
+        function loadRides() {
+            db.collection('rides')
+                .orderBy('timestamp', 'desc')
+                .limit(50)
+                .onSnapshot(snapshot => {
+                    rides = [];
+                    snapshot.forEach(doc => {
+                        rides.push({id: doc.id, ...doc.data()});
+                    });
+                    renderRides();
+                }, error => console.error("Error loading rides:", error));
+        }
+
+       function renderRides(dataList) {
+        const container = document.getElementById('ridesList');
+        if (rides.length === 0) {
+            container.innerHTML = '<div class="empty-state" style="grid-column: 1 / -1"><h3>No rides yet</h3></div>';
+            return;
+        }
+        if (dataList && dataList.length == 0){
+            container.innerHTML = '<div class="empty-state" style="grid-column: 1 / -1"><h3>No rides Found based on you search filter. Try changing you search fileter</h3></div>';
+            return;
+        }
+        if (rides.length === 0) {
+            container.innerHTML = '<div class="empty-state" style="grid-column: 1 / -1"><h3>No rides yet</h3></div>';
+            return;
+        }
+        if (!dataList){
+            dataList = rides
+        }
+        const now = new Date();
+        dataList = dataList.filter(r =>
+            r.departure && new Date(r.departure) > now
+        );
+
+        // Separate own rides (prioritized) and others
+        const currentUser = auth.currentUser;
+        const ownRides = dataList.filter(r => currentUser && r.userId === currentUser.uid);
+        const otherRides = dataList.filter(r => !currentUser || r.userId !== currentUser.uid);
+        const allRides = [...ownRides, ...otherRides];  // Own first, then others
+
+        container.innerHTML = allRides.map(ride => {
+            // Existing HTML template here (unchanged)
+            return `
+            <div class="post-card">
+                <h3 class="post-title">🚗 ${ride.from} → ${ride.to}</h3>
+               <div class="post-meta">
+                    <span class="badge badge-info">📅 ${ride.date}</span>
+                    <span class="badge badge-info">🕒 ${ride.time}</span>
+                    <span class="badge badge-success">👥 ${ride.seats} seats</span>
+                </div>
+                <p class="post-description"> ${ride.notes || 'No details'}</p>
+                <div class="post-user">
+                <div class="avatar">${ride.name.charAt(0).toUpperCase()}</div>
+                <div class="user-info">
+                    <p class="user-name">👤 ${ride.name}</p>
+                    <p class="user-phone">${ride.phone}</p>
+                </div>
+                ${currentUser && currentUser.uid === ride.userId ? 
+                    ' <button class="btn btn-danger" onclick="deleteRide(\'' + ride.id + '\')">Delete</button>' : 
+                    ' <button class="btn btn-contact" onclick="contactUser(\'' + ride.phone + '\', \'' + ride.name + '\')">Join Ride</button>'
+                }
+                </div>
+            </div>
+            `;
+
+        }).join('');
+        }
+
+
+        // ===== ERRANDS FUNCTIONS =====
+        document.getElementById('errandForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            
+            const user = auth.currentUser;
+            if (!user) {
+                showAppAlert('Please log in first!');
+                return;
+            }
+
+            const phone = document.getElementById('errandPhone').value;
+            if (!isValidIndianMobile(phone)) {
+                showAppAlert('Enter a valid 10-digit Indian mobile number.');
+                return;
+            }
+
+
+            const errand = {
+                userId: user.uid,
+                name: user.displayName,  // Forced from Google Auth
+                phone: document.getElementById('errandPhone').value,
+                item: document.getElementById('errandItem').value,
+                budget: document.getElementById('errandBudget').value || '0',
+                details: document.getElementById('errandDetails').value,
+                timestamp: firebase.firestore.FieldValue.serverTimestamp()
+            };
+
+            db.collection('errands').add(errand)
+                .then((docRef) => {
+                    document.getElementById('errandForm').reset();
+                    refillForcedNameFields();
+                    showAppAlert('Errand posted! 🛒');
+                })
+                .catch((error) => {
+                    showAppAlert('Error: ' + error.message);
+                });
+        });
+
+        function deleteErrand(id) {
+        showAppConfirm('Delete this errand request?', (confirmed) => {
+            if (!confirmed) return;
+
+            db.collection('errands').doc(id).delete()
+            .then(() => {
+                showAppAlert('Errand deleted successfully 🛒');
+            })
+            .catch(err => {
+                showAppAlert('Error deleting errand: ' + err.message);
+            });
+        });
+        }
+
+
+        function loadErrands() {
+            db.collection('errands')
+                .orderBy('timestamp', 'desc')
+                .limit(50)
+                .onSnapshot(snapshot => {
+                    errands = [];
+                    snapshot.forEach(doc => {
+                        errands.push({id: doc.id, ...doc.data()});
+                    });
+                    renderErrands();
+                }, error => console.error("Error loading errands:", error));
+        }
+
+        function renderErrands(dataList) {
+            const container = document.getElementById('errandsList');
+            if (dataList && dataList.length === 0){
+                container.innerHTML = '<div class="empty-state" style="grid-column: 1/-1;"><h3>No errands Found on your condition</h3></div>';
+                return;
+            }
+            if (errands.length === 0) {
+                container.innerHTML = '<div class="empty-state" style="grid-column: 1/-1;"><h3>No errands yet</h3></div>';
+                return;
+            }
+            if (!dataList){
+                dataList = errands
+            }
+
+            container.innerHTML = dataList.map(errand => `
+                <div class="post-card">
+                    <h3 class="post-title">${errand.item}</h3>
+                    <div class="post-meta">
+                        <span class="badge badge-warning">₹ ${errand.budget}</span>
+                        <span class="badge badge-success">📤 ${formatTimestamp(errand.timestamp)}</span>
+                    </div>
+                    <p class="post-description">${errand.details || 'No details'}</p>
+                    <div class="post-user">
+                        <div class="avatar">${errand.name.charAt(0).toUpperCase()}</div>
+                        <div class="user-info">
+                            <p class="user-name">${errand.name}</p>
+                            <p class="user-phone">${errand.phone}</p>
+                        </div>
+                        <button class="btn btn-contact" onclick="contactUser('${errand.phone}', '${errand.name}')">Connect</button>
+                        ${auth.currentUser && auth.currentUser.uid === errand.userId ? `<button class="btn btn-danger" onclick="deleteErrand('${errand.id}')">Delete</button>` : ''}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // ===== TRAINS FUNCTIONS =====
+        document.getElementById('trainForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            
+            const user = auth.currentUser;
+            if (!user) {
+                showAppAlert('Please log in first!');
+                return;
+            }
+            const phone = document.getElementById('trainPhone').value;
+            if (!isValidIndianMobile(phone)) {
+                showAppAlert('Enter a valid 10-digit Indian mobile number.');
+                return;
+            }
+
+
+            const departureInput = document.getElementById('trainDeparture').value;
+            if (!departureInput) {
+                showAppAlert('Select departure date/time!');
+                return;
+            }
+
+            const selectedDateTime = new Date(departureInput);
+            const now = new Date();
+            
+            if (selectedDateTime <= now) {
+                showAppAlert('❌ Departure time must be in the future!');
+                return;
+            }
+
+           const train = {
+                userId: user.uid,
+                name: user.displayName,  // Forced from Google Auth
+                phone: document.getElementById('trainPhone').value,
+                trainIdentifier: document.getElementById('trainNumberName').value,
+                from: document.getElementById('trainFrom').value,
+                to: document.getElementById('trainTo').value,
+                departure: document.getElementById('trainDeparture').value,
+                coach: document.getElementById('trainCoach').value,
+                notes: document.getElementById('trainNotes').value,
+                timestamp: firebase.firestore.FieldValue.serverTimestamp()
+            };
+
+            db.collection('trains').add(train)
+                .then((docRef) => {
+                    document.getElementById('trainForm').reset();
+                    refillForcedNameFields();
+                    showAppAlert('Train journey posted! 🚂');
+                })
+                .catch((error) => {
+                    showAppAlert('Error: ' + error.message);
+                });
+        });
+
+        function loadTrains() {
+            db.collection('trains')
+                .orderBy('timestamp', 'desc')
+                .limit(50)
+                .onSnapshot(snapshot => {
+                    trains = [];
+                    snapshot.forEach(doc => {
+                        trains.push({id: doc.id, ...doc.data()});
+                    });
+                    renderTrains();
+                }, error => console.error("Error loading trains:", error));
+        }
+
+        function renderTrains(filtered = null) {
+            const container = document.getElementById('trainsList');
+            const now = new Date();
+            const toRender = (filtered || trains).filter(
+                t => t.departure && new Date(t.departure) > now
+            );
+
+            
+            if (toRender.length === 0) {
+                container.innerHTML = '<div class="empty-state" style="grid-column: 1/-1;"><h3>No train journeys yet</h3></div>';
+                return;
+            }
+
+            container.innerHTML = toRender.map(train => {
+                const departDate = new Date(train.departure).toLocaleDateString();
+                const departTime = new Date(train.departure).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                
+                return `
+                    <div class="post-card">
+                        <h3 class="post-title">🚂 ${train.trainIdentifier || train.number || ''}</h3>
+                        <div class="post-meta">
+                            <span class="badge badge-info">🚂 ${train.from} → ${train.to}</span>
+                            <span class="badge badge-success">📅 ${departDate}</span>
+                            <span class="badge badge-info">⏰ ${departTime}</span>
+                        </div>
+                        ${train.coach ? `<p class="post-description"><strong>Coach:</strong> ${train.coach}</p>` : ''}
+                        <p class="post-description">${train.notes || 'No notes'}</p>
+                        <div class="post-user">
+                            <div class="avatar">${train.name.charAt(0).toUpperCase()}</div>
+                            <div class="user-info">
+                                <p class="user-name">${train.name}</p>
+                                <p class="user-phone">${train.phone}</p>
+                            </div>
+                            <button class="btn btn-contact" onclick="contactUser('${train.phone}', '${train.name}')">Connect</button>
+                            ${auth.currentUser && auth.currentUser.uid === train.userId ? `<button class="btn btn-danger" onclick="deleteTrain('${train.id}')">Delete</button>` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+      function deleteTrain(id) {
+        showAppConfirm('Delete this train journey?', (confirmed) => {
+            if (!confirmed) return;
+
+            db.collection('trains').doc(id).delete()
+            .then(() => {
+                showAppAlert('Train journey deleted successfully 🚂');
+            })
+            .catch(err => {
+                showAppAlert('Error deleting train journey: ' + err.message);
+            });
+        });
+        }
+
+
+        function searchTrainTravelers() {
+  const searchTerm = document.getElementById('trainSearchInput').value.trim();
+  if (!searchTerm) { showAppAlert('Enter train number or name!'); return; }
+  const container = document.getElementById('trainsList');
+  container.innerHTML = '<div class="empty-state"><p>🔄 Loading co-travelers...</p></div>';  // Loader
+  
+  // Direct Firestore query (add indexes for trainIdentifier if needed)
+  db.collection('trains')
+    .orderBy('timestamp', 'desc')
+    .limit(50)
+    .onSnapshot(snapshot => {
+      const results = snapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() }))
+        .filter(train => {
+          const id = (train.trainIdentifier || train.number || '').toLowerCase();
+          return id.includes(searchTerm.toLowerCase());
+        });
+      renderTrains(results);  // Pass directly
+    }, err => {
+      console.error('Search error:', err);
+      container.innerHTML = '<div class="empty-state"><p>❌ Error loading. Check console/login.</p></div>';
+    });
+}
+
+        // ===== PROFILE FUNCTIONS =====
+        document.getElementById('profileForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+
+            // ✅ ADD VALIDATION HERE (RIGHT AFTER preventDefault)
+            const phone = document.getElementById('profilePhone').value;
+            if (!isValidIndianMobile(phone)) {
+                showAppAlert('Enter a valid 10-digit Indian mobile number starting with 7, 8, or 9.');
+                return;
+            }
+
+            const currentUser = auth.currentUser;
+
+            const userProfile = {
+                name: currentUser ? currentUser.displayName : 'User',
+                phone: phone, // use validated phone
+                hostel: document.getElementById('profileHostel').value,
+                bio: document.getElementById('profileBio').value
+            };
+            
+            document.getElementById('profileDisplay').innerHTML = `
+                <div>
+                    <p><strong>Name:</strong> ${userProfile.name}</p>
+                    <p><strong>Phone:</strong> ${userProfile.phone}</p>
+                    <p><strong>Hostel:</strong> ${userProfile.hostel || 'Not specified'}</p>
+                    <p><strong>Bio:</strong> ${userProfile.bio || 'No bio'}</p>
+                </div>
+            `;
+            
+            document.getElementById('savedProfile').style.display = 'block';
+            showAppAlert('Profile saved! ✅');
+        });
+
+
+        // ===== CONTACT HELPER =====
+            function contactUser(phone, name) {
+        if (!phone) {
+            showAppAlert("Phone number not available");
+            return;
+        }
+
+        // Clean phone number (remove spaces, +, -)
+        let cleanedPhone = phone.replace(/\D/g, '');
+
+        // If number is Indian and missing country code, add 91
+        if (cleanedPhone.length === 10) {
+            cleanedPhone = "91" + cleanedPhone;
+        }
+
+        const message = encodeURIComponent(
+            `Hi ${name}, I found your route on Travel Buddy and would like to connect.`
+        );
+
+        const whatsappURL = `https://wa.me/${cleanedPhone}?text=${message}`;
+
+        // Open WhatsApp (web or app)
+        window.open(whatsappURL, "_blank");
+        setTimeout(() => {
+            showAppAlert("If WhatsApp didn't open, please make sure it is installed.");
+        }, 1500);
+
+    }
+
+        // ===== TOGGLE SEARCH FORM =====
+        function toggleSearchForm() {
+            const container = document.getElementById('searchFormContainer');
+            const btn = document.getElementById('toggleSearchBtn');
+            
+            if (container.style.display === 'none') {
+                container.style.display = 'block';
+                btn.textContent = 'Hide Search';
+                btn.classList.add('active');
+            } else {
+                container.style.display = 'none';
+                btn.textContent = 'Show Search';
+                btn.classList.remove('active');
+            }
+        }
+
+        // ===== LOAD ALL DATA =====
+        function loadAllData() {
+            loadErrands();
+            loadRides();
+            loadTrains();
+            setupLocationAutocomplete('searchFrom', 'fromLocationList');
+            setupLocationAutocomplete('searchTo', 'toLocationList');
+            setupLocationAutocomplete('rideFrom', 'rideFromLocationList');
+            setupLocationAutocomplete('rideTo', 'rideToLocationList');
+            // setupLocationAutocomplete('trainFrom', 'trainFromLocationList');
+            // setupLocationAutocomplete('trainTo', 'trainToLocationList');
+        }
+
+        // ===== INITIAL RENDER =====
+        renderErrands();
+        renderRides();
+        renderTrains();
+
+        function clearTrainSearch() {
+            document.getElementById('trainSearchInput').value = '';  // Clear input
+            document.getElementById('trainsList').innerHTML = '<div class="empty-state"><p>🔄 Loading all trains...</p></div>';  // Loader
+            
+            // Reload ALL trains (triggers onSnapshot in loadTrains)
+            loadTrains();  // Your existing function populates trains[] & renders all
+        }
+
+
+
+
+    </script>
+    <!-- Custom App Alert -->
+    <div id="appAlert" class="app-alert-overlay">
+    <div class="app-alert-box">
+        <h3>🚀 Travel Buddy</h3>
+        <p id="appAlertMessage"></p>
+        <button onclick="closeAppAlert()" class="btn btn-primary">OK</button>
+    </div>
+    </div>
+
+    <!-- Custom Confirm Dialog -->
+    <div id="appConfirm" class="app-alert-overlay">
+    <div class="app-alert-box">
+        <h3>🚀 Travel Buddy</h3>
+        <p id="appConfirmMessage"></p>
+        <div style="display:flex; gap:12px; justify-content:center;">
+        <button class="btn btn-secondary" onclick="closeAppConfirm(false)">Cancel</button>
+        <button class="btn btn-danger" onclick="closeAppConfirm(true)">Confirm</button>
+        </div>
+    </div>
+    </div>
+
+
+    <script src="main.js">
+        
+    </script>
+    <script src="location.js"></script>
+    <script src="AutoComplete.js"></script>
+
+
+
+
+
+    
+    <script src="filters.js"></script>
+    <script>
+        const filterInputRides = document.getElementById("filter-input-rides");
+        const filterSelectRides = document.getElementById("filter-select-rides");
+
+        const rideFilter = new RideFilter(filterInputRides, filterSelectRides);
+
+        function updateUI() {
+            const filteredRides = rideFilter.apply(rides);
+            renderRides(filteredRides);
+        }
+
+        filterInputRides.addEventListener("input", updateUI);
+        filterSelectRides.addEventListener("change", updateUI);
+    </script>
+    <script>
+        const errandInput = document.getElementById("filter-input-erands");
+        const errandSelect = document.getElementById("filter-select-erands");
+
+        const errandFilter = new ErrandFilter(errandInput, errandSelect);
+
+        function updateErrandsUI() {
+            const filteredErrands = errandFilter.apply(errands);
+            renderErrands(filteredErrands);
+        }
+
+        errandInput.addEventListener("input", updateErrandsUI);
+        errandSelect.addEventListener("change", updateErrandsUI);
+    </script>
+    <script>
+        const trainInput = document.getElementById("filter-input-trains");
+        const trainSelect = document.getElementById("filter-select-trains");
+
+        const trainFilter = new TrainFilter(trainInput, trainSelect);
+
+        function updateTrainsUI() {
+            const filteredTrains = trainFilter.apply(trains);
+            renderTrains(filteredTrains);
+        }
+
+        trainInput.addEventListener("input", updateTrainsUI);
+        trainSelect.addEventListener("change", updateTrainsUI);
+
+    </script>
+
+        <script>
+function initBuddyMap() {
+    // IIIT Kottayam coordinates
+    const iiitKottayam = { lat: 9.754833, lng: 76.650000 };
+    
+    const map = new google.maps.Map(document.getElementById("buddy-map"), {
+        zoom: 16,
+        center: iiitKottayam,
+        // ❌ THIS REMOVES WATERMARK
+        mapTypeControl: false,
+        streetViewControl: false,
+        fullscreenControl: false,
+        // Custom styles to hide watermark
+        styles: [
+            {
+                featureType: "poi",
+                elementType: "labels",
+                stylers: [{ visibility: "off" }]
+            }
+        ]
+    });
+    
+    new google.maps.Marker({
+        position: iiitKottayam,
+        map: map,
+        title: "IIIT Kottayam - Buddy Community Hub"
+    });
+}
+</script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDYEKvKR51_xA8cgChVKklry94ieK4ZBdc&callback=initBuddyMap" async defer></script>
+
+
+</body> 
+</html>
