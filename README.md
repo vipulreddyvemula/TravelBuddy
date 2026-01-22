@@ -2,6 +2,9 @@
 
 Travel Buddy is a web app built for the IIIT Kottayam community to make daily commuting and long-distance travel easier, safer, and more organized. It lets students share rides, coordinate train journeys, post errands, and discover how to reach campus using curated local routes and locations. 
 
+
+Link :- https://travel-buddy-76b26.firebaseapp.com/ 
+
 ---
 
 ## Features
