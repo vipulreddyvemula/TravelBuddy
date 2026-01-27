@@ -467,14 +467,16 @@ function refillForcedNameFields() {
 
     <script>
         // ===== FIREBASE SETUP =====
+        // REPLACE YOUR API KEYS HERE
         const firebaseConfig = {
-            apiKey: "AIzaSyDS-gIzoAL4agyN615ogi0e8wfpro6OcD4",
-            authDomain: "travel-buddy-76b26.firebaseapp.com",
-            projectId: "travel-buddy-76b26",
-            storageBucket: "travel-buddy-76b26.firebasestorage.app",
-            messagingSenderId: "690855818406",
-            appId: "1:690855818406:web:3b2285d2b69fe5ef763067"
+          apiKey: "YOUR_API_KEY",
+          authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+          projectId: "YOUR_PROJECT_ID",
+          storageBucket: "YOUR_PROJECT_ID.appspot.com",
+          messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+          appId: "YOUR_APP_ID"
         };
+
 
         firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth();
@@ -1184,4 +1186,5 @@ function initBuddyMap() {
 
 
 </body> 
+
 </html>
