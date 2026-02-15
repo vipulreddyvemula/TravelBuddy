@@ -152,4 +152,4 @@ Link :- https://travel-buddy-76b26.firebaseapp.com/
 - Notification system for new rides matching your usual route.
 - Support for additional campuses and cities.
 
-Happy commuting! 🚀
+Happy commuting! 
